@@ -1,0 +1,193 @@
+# Given is code to create sockets, establish connection and send data collected from sensors to another RPi.
+#The socket tries to reconnect with reciever if brokenpipe error occurs.
+
+import socket
+import time
+import threading
+import random
+
+import mpu6050
+import RPi.GPIO as GPIO
+import smbus
+import statistics
+from collections import deque
+
+IP_ADDR = '192.168.189.220'
+
+#some MPU6050 Registers and their Address
+bus = smbus.SMBus(1)
+
+PWR_MGMT_1   = 0x6B
+SMPLRT_DIV   = 0x19
+CONFIG       = 0x1A
+GYRO_CONFIG  = 0x1B
+INT_ENABLE   = 0x38
+ACCEL_ZOUT_H = 0x3F
+
+DEVICE_ADDRESS = 0x68
+mpu6050 = mpu6050.mpu6050(DEVICE_ADDRESS)
+
+# Define thresholds and buffer size
+BUFFER_SIZE = 5
+STD_DEV_THRESH = 0.6
+
+def MPU_Init():
+        #write to sample rate register
+        bus.write_byte_data(DEVICE_ADDRESS, SMPLRT_DIV, 7)
+
+        #Write to power management register
+        bus.write_byte_data(DEVICE_ADDRESS, PWR_MGMT_1, 1)
+
+        #Write to Configuration register
+        bus.write_byte_data(DEVICE_ADDRESS, CONFIG, 0)
+
+        #Write to Gyro configuration register
+        bus.write_byte_data(DEVICE_ADDRESS, GYRO_CONFIG, 24)
+
+        #Write to interrupt enable register
+        bus.write_byte_data(DEVICE_ADDRESS, INT_ENABLE, 1)
+
+def read_raw_data(addr):
+        #Accelero and Gyro value are 16-bit
+        high = bus.read_byte_data(DEVICE_ADDRESS, addr)
+        low = bus.read_byte_data(DEVICE_ADDRESS, addr+1)
+
+        #concatenate higher and lower value
+        value = ((high << 8) | low)
+        #to get signed value from mpu6050
+        if(value > 32768):
+                value = value - 65536
+        return value
+
+
+
+c = 0
+
+
+# Set up the socket connection and continuous sending
+def send_data(client_socket):
+        MPU_Init()
+        z_axis_readings = deque(maxlen=BUFFER_SIZE)
+
+        c = 0
+
+        while True:
+                try:
+                        #Read Accelerometer raw value
+                        acc_z = read_raw_data(ACCEL_ZOUT_H)
+                        #Full scale range +/- 250 degree/C as per sensitivity scale factor
+                        Az = -1.0*acc_z/16384.0
+
+                        #add reading to queue
+                        z_axis_readings.append(Az)
+
+                        # Initial 5 readings
+                        if c < BUFFER_SIZE:
+                                c = c+1
+                                continue
+
+                        # Get temperature readings and calculate standard deviation
+                        temp = mpu6050.get_temp()
+                        std_dev = statistics.stdev(z_axis_readings)
+
+                        # Vibrations Cal
+                        if std_dev > STD_DEV_THRESH:
+                                vib = 2
+                        elif std_dev < 0.05:
+                                vib = 0
+                        else:
+                                vib = 1
+
+                        # MQ-3 Cal
+                        # Set up the MQ3 sensor
+                        GPIO.setmode(GPIO.BCM)
+                        MQ3_PIN = 17
+                        GPIO.setup(MQ3_PIN, GPIO.IN)
+
+                        if GPIO.input(MQ3_PIN) == GPIO.LOW:
+                                mst = 1
+                        else:
+                                mst = 0
+
+
+                        # Prepare data to send
+                        if vib == 2 or temp >= 33.5 or mst == 1:
+                                data = f"1{vib}{mst}{temp:.2f}"
+
+                        else:
+                                data = f"0"
+
+                        # Send data to server
+                        client_socket.send(data.encode())
+                        print("Sent to server:", data)
+
+                        time.sleep(0.1) # Adjust the frequency of data sending, here we have maintained difference of 0>
+                except (socket.error, BrokenPipeError) as e:
+                        print(f"Error while sending data: {e}")
+                        print("Reconnecting to server...")
+                        reconnect(client_socket)  # Attempt to reconnect if broken pipe error occurs
+                        break
+                except Exception as e:
+                        print(f"Unexpected error: {e}")
+                        break
+                except KeyboardInterrupt:
+                        print("User stop")
+                finally:
+                        GPIO.cleanup()
+
+# Handle receiving data from the server
+def receive_data(client_socket):
+        while True:
+                try:
+                        # Wait for data from the server
+                        data = client_socket.recv(1024).decode()
+                        if not data:
+                                print("Server has closed the connection.")
+                                break
+                        print("Received from server:", data)
+                except (socket.error, BrokenPipeError) as e:
+                        print(f"Error while receiving data: {e}")
+                        print("Reconnecting to server...")
+                        reconnect(client_socket)  # Attempt to reconnect if broken pipe error occurs
+                except Exception as e:
+                        print(f"Unexpected error: {e}")
+                        break
+
+# Reconnect logic if connection is lost
+def reconnect(client_socket):
+        try:
+                server_ip = IP_ADDR
+                server_port = 12345
+                client_socket.connect((server_ip, server_port))
+                print(f"Reconnected to server {server_ip} on port {server_port}.")
+        except Exception as e:
+                print(f"Error reconnecting: {e}")
+                time.sleep(5)
+                reconnect(client_socket)  # Retry reconnecting
+
+# Connect to the receiver server
+def start_client():
+        server_ip = IP_ADDR
+        server_port = 12345
+
+        # Create a socket object
+        client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+
+        try:
+                # Connect to the receiver
+                client_socket.connect((server_ip, server_port))
+                print(f"Connected to server {server_ip} on port {server_port}.")
+
+                # Start the data sending and receiving threads
+                threading.Thread(target=send_data, args=(client_socket,), daemon=True).start()
+                threading.Thread(target=receive_data, args=(client_socket,), daemon=True).start()
+
+                # Keep the main thread alive
+                while True:
+                        time.sleep(1)
+
+        except Exception as e:
+                print(f"Error connecting to the server: {e}")
+
+if __name__ == "__main__":
+        start_client()
