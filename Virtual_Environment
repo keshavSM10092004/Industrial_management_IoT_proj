@@ -1,0 +1,20 @@
+# Update the system
+sudo apt-get update
+sudo apt-get upgrade
+
+# Install virtualenv to create a virtual environment
+sudo apt install virtualenv
+
+# Create and activate the virtual environment
+python -m venv Myenv
+source Myenv/bin/activate
+# Virtual environment has been activated
+
+# Now, in the virtual environment, we need to install the required libraries:
+
+# For MPU6050 sensor:
+sudo apt install python3-smbus
+pip install mpu6050-raspberrypi
+
+# For MQ3 sensor:
+sudo pip3 install RPi.GPIO
