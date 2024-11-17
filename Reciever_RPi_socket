@@ -1,0 +1,105 @@
+# This file contains reciever side RPi code.
+# This programme prints 'All Good' if everything is fine.
+# Lights up respective bulbs if something not good is detected.
+
+import socket
+import RPi.GPIO as GPIO
+SER_IP = '192.168.189.220'
+
+GOOD_PIN = 26
+VIB_PIN = 6
+ACL_PIN = 13
+TEMP_PIN = 19
+GPIO.setmode(GPIO.BCM)  # BCM numbering
+GPIO.setup(GOOD_PIN, GPIO.OUT)
+GPIO.setup(VIB_PIN, GPIO.OUT)
+GPIO.setup(ACL_PIN, GPIO.OUT)
+GPIO.setup(TEMP_PIN, GPIO.OUT)
+
+# Set up the socket server to receive data
+def start_server():
+    server_ip = SER_IP  # Listen on all available interfaces (replace with actual IP if needed)
+    server_port = 12345
+
+    # Create a socket object
+    server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+
+    # Bind the server to the IP and port
+    server_socket.bind((server_ip, server_port))
+
+    # Listen for incoming connections
+    server_socket.listen(1)
+    print(f"Listening on {server_ip}:{server_port}...")
+
+    while True:
+        # Accept incoming connections
+        client_socket, client_address = server_socket.accept()
+        print(f"Connection from {client_address}")
+
+        # Handle the communication in a loop
+        try:
+            while True:
+                data = client_socket.recv(1024).decode()
+                if not data:
+                    print(f"Connection lost from {client_address}.")
+                    break
+
+                if data[0] == "0":
+                    print("All Good")
+                    GPIO.output(GOOD_PIN, GPIO.HIGH)
+                    GPIO.output(VIB_PIN, GPIO.LOW)
+                    GPIO.output(ACL_PIN, GPIO.LOW)
+                    GPIO.output(TEMP_PIN, GPIO.LOW)
+                else:
+                    GPIO.output(GOOD_PIN, GPIO.LOW)
+
+                    if data[1] == "2":
+                        vib = "Abnormal"
+                        GPIO.output(VIB_PIN, GPIO.HIGH)
+                    elif data[1] == "1":
+                        vib = "Normal"
+                    else:
+                        vib = "Off"
+                        GPIO.output(VIB_PIN, GPIO.LOW)
+
+                    if data[2] == "1":
+                        alc = 1
+                        GPIO.output(ACL_PIN, GPIO.HIGH)
+                    else:
+                        alc = 0
+                        GPIO.output(ACL_PIN, GPIO.LOW)
+
+                    temp = data[3:]
+                    if float(temp) > 33.5:
+                        GPIO.output(TEMP_PIN, GPIO.HIGH)
+                    else:
+                        GPIO.output(TEMP_PIN, GPIO.LOW)
+
+                    data = f"Vibration : {vib}\tAlcohol Status : {alc}\tTemperature : {temp}"
+                    print(data)
+
+                if data[0] == "1":
+                    # Create a new socket to send data to the second server
+                    server2_ip = '192.168.76.103'
+                    server2_port = 12346
+
+                    second_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                    second_socket.connect((server2_ip, server2_port))
+                    second_socket.send(data.encode())
+                    second_socket.close()  # Close the second socket after sending data
+                    print("Abnormal behaviour, sent to PC")
+
+                # Send acknowledgment back to the client
+                client_socket.send("Data received".encode())
+
+        except (socket.error, BrokenPipeError) as e:
+            print(f"Error while communicating with client: {e}")
+        finally:
+            GPIO.output(GOOD_PIN, GPIO.LOW)
+            GPIO.output(VIB_PIN, GPIO.LOW)
+            GPIO.output(ACL_PIN, GPIO.LOW)
+            GPIO.output(TEMP_PIN, GPIO.LOW)
+            client_socket.close()  # Close the client socket after communication ends
+
+if __name__ == "__main__":
+    start_server()
