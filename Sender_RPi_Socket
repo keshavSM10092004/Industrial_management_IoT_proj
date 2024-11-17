@@ -12,7 +12,7 @@ import smbus
 import statistics
 from collections import deque
 
-IP_ADDR = '192.168.189.220'
+IP_ADDR = 'W.X.Y.Z' #replace it with reciever RPi's IP address.
 
 #some MPU6050 Registers and their Address
 bus = smbus.SMBus(1)
@@ -168,7 +168,7 @@ def reconnect(client_socket):
 # Connect to the receiver server
 def start_client():
         server_ip = IP_ADDR
-        server_port = 12345
+        server_port = 12345 # Change port according to you
 
         # Create a socket object
         client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
