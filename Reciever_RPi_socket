@@ -1,10 +1,11 @@
 # This file contains reciever side RPi code.
 # Lights up Green bulb if everything is normal.
 # Lights up Red if abnormal vibrations occur, Yellow if alocohol level is above intended threshold, violet if temperature rises above intended threshold.
+# This lights can be considered as actuators and can be replaced with real industrial applications. 
 
 import socket
 import RPi.GPIO as GPIO
-SER_IP = '192.168.189.220'
+SER_IP = 'W.X.Y.Z' # Replace with your client RPi's IP addr. 
 
 GOOD_PIN = 26
 VIB_PIN = 6
@@ -80,7 +81,7 @@ def start_server():
 
                 if data[0] == "1":
                     # Create a new socket to send data to the second server
-                    server2_ip = '192.168.76.103'
+                    server2_ip = 'A.B.C.D' # Replace with IP addr of device you intend to send data.
                     server2_port = 12346
 
                     second_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
