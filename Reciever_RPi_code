@@ -1,0 +1,44 @@
+# This file contains reciever side RPi code.
+
+import socket
+
+# Set up the socket server to receive data
+def start_server():
+    server_ip = '0.0.0.0'  # Listen on all available interfaces (replace with actual IP if needed)
+    server_port = 12345
+
+    # Create a socket object
+    server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+
+    # Bind the server to the IP and port
+    server_socket.bind((server_ip, server_port))
+
+    # Listen for incoming connections
+    server_socket.listen(1)
+    print(f"Listening on {server_ip}:{server_port}...")
+
+    while True:
+        # Accept incoming connections
+        client_socket, client_address = server_socket.accept()
+        print(f"Connection from {client_address}")
+
+        # Handle the communication in a loop
+        try:
+            while True:
+                data = client_socket.recv(1024).decode()
+                if not data:
+                    print(f"Connection lost from {client_address}.")
+                    break
+
+                print("Received from client:", data)
+                
+                # Send acknowledgment back to the client
+                client_socket.send("Data received".encode())
+
+        except (socket.error, BrokenPipeError) as e:
+            print(f"Error while communicating with client: {e}")
+        finally:
+            client_socket.close()  # Close the client socket after communication ends
+
+if __name__ == "__main__":
+    start_server()
