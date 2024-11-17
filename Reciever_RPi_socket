@@ -79,17 +79,6 @@ def start_server():
                     data = f"Vibration : {vib}\tAlcohol Status : {alc}\tTemperature : {temp}"
                     print(data)
 
-                if data[0] == "1":
-                    # Create a new socket to send data to the second server
-                    server2_ip = 'A.B.C.D' # Replace with IP addr of device you intend to send data.
-                    server2_port = 12346
-
-                    second_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                    second_socket.connect((server2_ip, server2_port))
-                    second_socket.send(data.encode())
-                    second_socket.close()  # Close the second socket after sending data
-                    print("Abnormal behaviour, sent to PC")
-
                 # Send acknowledgment back to the client
                 client_socket.send("Data received".encode())
 
