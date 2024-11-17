@@ -1,0 +1,24 @@
+#This file has code to test working of MPU6050 sensor, which has accelrometer, gyroscope and temperature sensor.
+import mpu6050
+import time
+import smbus2 as smbus
+
+
+# Initialize the MPU6050 with the correct I2C address (usually 0x68)
+sensor = mpu6050.mpu6050(0x68)
+
+try:
+    while True:
+        # Read acceleration and gyroscope data
+        accel_data = sensor.get_accel_data()
+        gyro_data = sensor.get_gyro_data()
+
+        print("Accelerometer Data: ", accel_data)
+        print("Gyroscope Data: ", gyro_data)
+
+        time.sleep(1)  # Delay for readability
+
+except KeyboardInterrupt:
+    print("Exiting...")
+
+#this returns data accelerometer and gyroscope data.
