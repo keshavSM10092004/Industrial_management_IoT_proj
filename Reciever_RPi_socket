@@ -1,6 +1,6 @@
 # This file contains reciever side RPi code.
-# This programme prints 'All Good' if everything is fine.
-# Lights up respective bulbs if something not good is detected.
+# Lights up Green bulb if everything is normal.
+# Lights up Red if abnormal vibrations occur, Yellow if alocohol level is above intended threshold, violet if temperature rises above intended threshold.
 
 import socket
 import RPi.GPIO as GPIO
