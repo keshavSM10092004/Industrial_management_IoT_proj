@@ -18,3 +18,11 @@ pip install mpu6050-raspberrypi
 
 # For MQ3 sensor:
 sudo pip3 install RPi.GPIO
+
+# One can configure RPi from it's PC by enabling SSH in RPi
+# After enabling ssh, run following command on PC's bash, but first ensure that your RPi is connected to WiFi and get it's IP addr.
+
+ssh pi@W.X.Y.Z
+
+# it will ask for password, after entering correct password, you can configure your RPi.
+# If your RPis and PC lie in same local network, they will function fine.
