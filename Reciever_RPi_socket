@@ -2,10 +2,12 @@
 # Lights up Green bulb if everything is normal.
 # Lights up Red if abnormal vibrations occur, Yellow if alocohol level is above intended threshold, violet if temperature rises above intended threshold.
 # This lights can be considered as actuators and can be replaced with real industrial applications. 
+# If something abnormal is seen, this RPi immediately sends data to PC of user.
 
 import socket
 import RPi.GPIO as GPIO
-SER_IP = 'W.X.Y.Z' # Replace with your client RPi's IP addr. 
+SER_IP = 'W.X.Y.Z' # Reciever RPi's IP addr.
+PC_IP = 'A.B.C.D' # Reciever PC's IP addr.
 
 GOOD_PIN = 26
 VIB_PIN = 6
@@ -18,42 +20,43 @@ GPIO.setup(ACL_PIN, GPIO.OUT)
 GPIO.setup(TEMP_PIN, GPIO.OUT)
 
 # Set up the socket server to receive data
-def start_server():
-    server_ip = SER_IP  # Listen on all available interfaces (replace with actual IP if needed)
-    server_port = 12345
-
+def serverStart():
+    sendIP = SER_IP
+    sendPort = 12345
+    # Create a new socket to send data to the second server
+    pcIP = PC_IP
+    pcPort = 12346
     # Create a socket object
-    server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-
+    sendSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     # Bind the server to the IP and port
-    server_socket.bind((server_ip, server_port))
+    sendSocket.bind((sendIP, sendPort))
 
     # Listen for incoming connections
-    server_socket.listen(1)
-    print(f"Listening on {server_ip}:{server_port}...")
+    sendSocket.listen(1)
+    print(f"Listening on {sendIP}:{sendPort}...")
 
     while True:
         # Accept incoming connections
-        client_socket, client_address = server_socket.accept()
-        print(f"Connection from {client_address}")
+        inSocket, inAddr = sendSocket.accept()
+        print(f"Connection from {inAddr}")
 
         # Handle the communication in a loop
         try:
             while True:
-                data = client_socket.recv(1024).decode()
+                data = inSocket.recv(1024).decode()
                 if not data:
-                    print(f"Connection lost from {client_address}.")
+                    print(f"Connection lost from {inAddr}.")
                     break
-
+                
                 if data[0] == "0":
                     print("All Good")
                     GPIO.output(GOOD_PIN, GPIO.HIGH)
-                    GPIO.output(VIB_PIN, GPIO.LOW)
-                    GPIO.output(ACL_PIN, GPIO.LOW)
-                    GPIO.output(TEMP_PIN, GPIO.LOW)
+                    GPIO.output(VIB_PIN, GPIO.LOW)  
+                    GPIO.output(ACL_PIN, GPIO.LOW)  
+                    GPIO.output(TEMP_PIN, GPIO.LOW)  
                 else:
-                    GPIO.output(GOOD_PIN, GPIO.LOW)
-
+                    GPIO.output(GOOD_PIN, GPIO.LOW)       
+                                 
                     if data[1] == "2":
                         vib = "Abnormal"
                         GPIO.output(VIB_PIN, GPIO.HIGH)
@@ -62,34 +65,39 @@ def start_server():
                     else:
                         vib = "Off"
                         GPIO.output(VIB_PIN, GPIO.LOW)
-
-                    if data[2] == "1":
-                        alc = 1
-                        GPIO.output(ACL_PIN, GPIO.HIGH)
+                    
+                    if int(data[2]):
+                        alc = "Present"
+                        GPIO.output(ACL_PIN, GPIO.HIGH) 
                     else:
-                        alc = 0
-                        GPIO.output(ACL_PIN, GPIO.LOW)
-
+                        alc = "Absent"
+                        GPIO.output(ACL_PIN, GPIO.LOW) 
+                    
                     temp = data[3:]
-                    if float(temp) > 33.5:
-                        GPIO.output(TEMP_PIN, GPIO.HIGH)
-                    else:
+                    if temp == "Low":
                         GPIO.output(TEMP_PIN, GPIO.LOW)
-
+                    else:
+                        GPIO.output(TEMP_PIN, GPIO.HIGH) 
+                        
                     data = f"Vibration : {vib}\tAlcohol Status : {alc}\tTemperature : {temp}"
-                    print(data)
-
+                    print(data)                    
+                    pcSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                    pcSocket.connect((pcIP, pcPort))
+                    pcSocket.send(data.encode())
+                    pcSocket.close()  # Close the second socket after sending data
+                    print("Abnormal behaviour, sent to PC")
+                    
                 # Send acknowledgment back to the client
-                client_socket.send("Data received".encode())
+                inSocket.send("Data received".encode())
 
         except (socket.error, BrokenPipeError) as e:
             print(f"Error while communicating with client: {e}")
         finally:
             GPIO.output(GOOD_PIN, GPIO.LOW)
-            GPIO.output(VIB_PIN, GPIO.LOW)
-            GPIO.output(ACL_PIN, GPIO.LOW)
-            GPIO.output(TEMP_PIN, GPIO.LOW)
-            client_socket.close()  # Close the client socket after communication ends
+            GPIO.output(VIB_PIN, GPIO.LOW)  
+            GPIO.output(ACL_PIN, GPIO.LOW)  
+            GPIO.output(TEMP_PIN, GPIO.LOW) 
+            inSocket.close()  # Close the client socket after communication ends
 
 if __name__ == "__main__":
-    start_server()
+    serverStart()
